@@ -51,7 +51,7 @@ export default function AddFoodModal({ mealLabel, mealId, onAdd, onClose }: Prop
   const [newFat, setNewFat] = useState('')
 
   useEffect(() => {
-    const timer = setTimeout(() => doSearch(query), 200)
+    const timer = setTimeout(() => doSearch(query), 350)
     return () => clearTimeout(timer)
   }, [query])
 
@@ -59,17 +59,29 @@ export default function AddFoodModal({ mealLabel, mealId, onAdd, onClose }: Prop
 
   async function doSearch(q: string) {
     setSearching(true)
-    const dbProducts: DBProduct[] = await searchProducts(q)
-    const dbItems: ResultItem[] = dbProducts.map(p => ({ food: dbToFoodItem(p), image_url: p.image_url }))
 
     const local = [...BUILTIN_FOODS, ...getCustomFoods()]
     const localFiltered = q
       ? local.filter(f => f.name.toLowerCase().includes(q.toLowerCase()) || f.brand?.toLowerCase().includes(q.toLowerCase()))
-      : local.slice(0, 10)
+      : local.slice(0, 8)
     const localItems: ResultItem[] = localFiltered.map(f => ({ food: f }))
 
-    const dbIds = new Set(dbItems.map(i => i.food.id))
-    const merged = [...dbItems, ...localItems.filter(i => !dbIds.has(i.food.id))]
+    const [dbProducts, offProducts] = await Promise.all([
+      searchProducts(q),
+      q.length >= 2 ? fetch(`/api/off/search?q=${encodeURIComponent(q)}`).then(r => r.json()).catch(() => []) : Promise.resolve([]),
+    ])
+
+    const dbItems: ResultItem[] = (dbProducts as DBProduct[]).map(p => ({ food: dbToFoodItem(p), image_url: p.image_url }))
+    const offItems: ResultItem[] = (offProducts as (FoodItem & { image_url?: string })[]).map(p => ({ food: p, image_url: p.image_url }))
+
+    const seenIds = new Set<string>()
+    const merged: ResultItem[] = []
+    for (const item of [...dbItems, ...offItems, ...localItems]) {
+      if (!seenIds.has(item.food.id)) {
+        seenIds.add(item.food.id)
+        merged.push(item)
+      }
+    }
     setResults(merged)
     setSearching(false)
   }

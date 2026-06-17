@@ -5,17 +5,6 @@ import { FoodItem } from '@/lib/types'
 import { saveCustomFood } from '@/lib/store'
 import { findByBarcode, dbToFoodItem } from '@/lib/products'
 
-interface OFFProduct {
-  product_name?: string
-  brands?: string
-  nutriments?: {
-    'energy-kcal_100g'?: number
-    proteins_100g?: number
-    carbohydrates_100g?: number
-    fat_100g?: number
-  }
-}
-
 async function lookupBarcode(code: string): Promise<FoodItem | null> {
   // 1. Check our Supabase DB first
   try {
@@ -23,23 +12,11 @@ async function lookupBarcode(code: string): Promise<FoodItem | null> {
     if (dbProduct) return dbToFoodItem(dbProduct)
   } catch { /* ignore */ }
 
-  // 2. Fall back to Open Food Facts
+  // 2. Fall back to Open Food Facts via server proxy
   try {
-    const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`)
+    const res = await fetch(`/api/off/barcode/${code}`)
     const data = await res.json()
-    if (data.status !== 1 || !data.product) return null
-    const p: OFFProduct = data.product
-    const n = p.nutriments || {}
-    return {
-      id: `off_${code}`,
-      name: p.product_name || 'Neznámy produkt',
-      brand: p.brands?.split(',')[0].trim(),
-      kcal_per_100g: Math.round(n['energy-kcal_100g'] || 0),
-      protein_per_100g: Math.round((n.proteins_100g || 0) * 10) / 10,
-      carbs_per_100g: Math.round((n.carbohydrates_100g || 0) * 10) / 10,
-      fat_per_100g: Math.round((n.fat_100g || 0) * 10) / 10,
-      barcode: code,
-    }
+    return data
   } catch { return null }
 }
 
