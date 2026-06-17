@@ -42,7 +42,7 @@ export default function ProfilePage() {
     }
   }, [router])
 
-  function handleSave() {
+  async function handleSave() {
     if (!profile) return
     const newWeight = parseFloat(weight) || profile.weight
     const newHeight = parseFloat(height) || profile.height
@@ -52,6 +52,8 @@ export default function ProfilePage() {
     const final: UserProfile = { ...updated, ...goals }
     saveProfile(final)
     setProfile(final)
+    const supabase = createClient()
+    await supabase.auth.updateUser({ data: { profile: final } })
     setEditing(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)

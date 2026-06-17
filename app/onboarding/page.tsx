@@ -2,8 +2,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { UserProfile } from '@/lib/types'
-import { saveProfile, buildDefaultProfile } from '@/lib/store'
+import { saveProfile } from '@/lib/store'
 import { calcTDEE } from '@/lib/calc'
+import { createClient } from '@/lib/supabase'
 
 type Step = 'goal' | 'profile' | 'activity' | 'result'
 
@@ -37,7 +38,7 @@ export default function OnboardingPage() {
   const stepIdx = STEPS.indexOf(step)
   const pct = Math.round(((stepIdx + 1) / STEPS.length) * 100)
 
-  function next() {
+  async function next() {
     const steps = STEPS
     const idx = steps.indexOf(step)
     if (step === 'activity') {
@@ -64,6 +65,8 @@ export default function OnboardingPage() {
         ...goals,
       }
       saveProfile(profile)
+      const supabase = createClient()
+      await supabase.auth.updateUser({ data: { profile } })
     }
     setStep(steps[idx + 1])
   }

@@ -37,7 +37,7 @@ async function lookupBarcode(code: string): Promise<FoodItem | null> {
 
 export default function ScanPage() {
   const router = useRouter()
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const scannerRef = useRef<unknown>(null)
   const [scanning, setScanning] = useState(false)
   const [manualCode, setManualCode] = useState('')
   const [loading, setLoading] = useState(false)
@@ -47,38 +47,41 @@ export default function ScanPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    return () => { stopCamera() }
+    return () => { stopScanner() }
   }, [])
 
-  async function startCamera() {
+  async function startScanner() {
     setError('')
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        videoRef.current.play()
-      }
+      const { Html5Qrcode } = await import('html5-qrcode')
+      const scanner = new Html5Qrcode('qr-reader')
+      scannerRef.current = scanner
       setScanning(true)
-
-      const { BrowserMultiFormatReader } = await import('@zxing/browser')
-      const reader = new BrowserMultiFormatReader()
-      reader.decodeFromVideoElement(videoRef.current!, async (result) => {
-        if (result) {
-          stopCamera()
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 120 } },
+        async (code: string) => {
+          await stopScanner()
           setScanning(false)
-          await handleCode(result.getText())
-        }
-      })
+          await handleCode(code)
+        },
+        undefined
+      )
     } catch {
-      setError('Kamera nie je dostupná. Zadaj kód ručne.')
+      setError('Kamera nie je dostupná alebo nemáš povolenie. Zadaj kód ručne.')
+      setScanning(false)
     }
   }
 
-  function stopCamera() {
-    if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop())
-      videoRef.current.srcObject = null
-    }
+  async function stopScanner() {
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode')
+      if (scannerRef.current) {
+        const s = scannerRef.current as InstanceType<typeof Html5Qrcode>
+        if (s.isScanning) await s.stop()
+        scannerRef.current = null
+      }
+    } catch { /* ignore */ }
   }
 
   async function handleCode(code: string) {
@@ -117,37 +120,26 @@ export default function ScanPage() {
       </div>
 
       <div className="p-4 space-y-3">
-        {!found && !notFound && (
+        {!found && !notFound && !loading && (
           <>
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-              <div className="relative bg-black" style={{ aspectRatio: '4/3' }}>
-                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-                {!scanning && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                    <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: '#E1F5EE' }}>
-                      <svg className="w-8 h-8" style={{ color: '#1D9E75' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 9V5a2 2 0 012-2h4M3 15v4a2 2 0 002 2h4m10-16h-4a2 2 0 00-2 2v4m6 6v4a2 2 0 01-2 2h-4M9 9h6v6H9z" />
-                      </svg>
-                    </div>
-                    <button
-                      onClick={startCamera}
-                      className="px-6 py-2.5 rounded-xl text-white text-sm font-medium"
-                      style={{ background: '#1D9E75' }}
-                    >
-                      Spustiť kameru
-                    </button>
+              <div id="qr-reader" className="w-full" style={{ minHeight: scanning ? 280 : 0 }} />
+              {!scanning && (
+                <div className="flex flex-col items-center justify-center py-10 gap-3">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: '#E1F5EE' }}>
+                    <svg className="w-8 h-8" style={{ color: '#1D9E75' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 9V5a2 2 0 012-2h4M3 15v4a2 2 0 002 2h4m10-16h-4a2 2 0 00-2 2v4m6 6v4a2 2 0 01-2 2h-4M9 9h6v6H9z" />
+                    </svg>
                   </div>
-                )}
-                {scanning && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="border-2 border-white rounded-lg opacity-70" style={{ width: '70%', height: '30%' }} />
-                  </div>
-                )}
-              </div>
+                  <button onClick={startScanner} className="px-6 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: '#1D9E75' }}>
+                    Spustiť kameru
+                  </button>
+                </div>
+              )}
               {scanning && (
-                <div className="px-4 py-3 text-center">
-                  <p className="text-sm text-gray-500">Namierte na čiarový kód produktu...</p>
-                  <button onClick={() => { stopCamera(); setScanning(false) }} className="text-xs text-gray-400 mt-1 hover:text-gray-600">Zrušiť</button>
+                <div className="px-4 py-3 flex items-center justify-between border-t border-gray-100">
+                  <p className="text-sm text-gray-500">Namierte na čiarový kód...</p>
+                  <button onClick={() => { stopScanner(); setScanning(false) }} className="text-xs text-gray-400 hover:text-gray-600">Zrušiť</button>
                 </div>
               )}
             </div>
@@ -171,11 +163,11 @@ export default function ScanPage() {
               />
               <button
                 onClick={() => handleCode(manualCode)}
-                disabled={!manualCode || loading}
+                disabled={!manualCode}
                 className="px-4 py-3 rounded-xl text-white text-sm font-medium flex-shrink-0"
                 style={{ background: manualCode ? '#1D9E75' : '#d1d5db' }}
               >
-                {loading ? '...' : 'Hľadať'}
+                Hľadať
               </button>
             </div>
           </>
@@ -192,19 +184,12 @@ export default function ScanPage() {
           <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
             <div className="text-4xl mb-3">🔍</div>
             <p className="font-medium text-gray-900 mb-1">Produkt nenájdený</p>
-            <p className="text-sm text-gray-400 mb-4">Tento produkt nie je v databáze. Môžeš ho pridať ručne.</p>
+            <p className="text-sm text-gray-400 mb-4">Tento produkt nie je v databáze. Môžeš ho pridať ručne v denníku.</p>
             <div className="flex gap-2">
-              <button
-                onClick={() => { setNotFound(false); setManualCode('') }}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600"
-              >
+              <button onClick={() => { setNotFound(false); setManualCode('') }} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600">
                 Skúsiť znova
               </button>
-              <button
-                onClick={() => router.push('/diary')}
-                className="flex-1 py-2.5 rounded-xl text-white text-sm font-medium"
-                style={{ background: '#1D9E75' }}
-              >
+              <button onClick={() => router.push('/diary')} className="flex-1 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: '#1D9E75' }}>
                 Pridať ručne
               </button>
             </div>

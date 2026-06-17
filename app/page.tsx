@@ -2,7 +2,8 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { getProfile } from '@/lib/store'
+import { getProfile, saveProfile } from '@/lib/store'
+import { UserProfile } from '@/lib/types'
 
 export default function Home() {
   const router = useRouter()
@@ -12,10 +13,17 @@ export default function Home() {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) {
         router.replace('/auth')
-      } else {
-        const profile = getProfile()
-        router.replace(profile ? '/diary' : '/onboarding')
+        return
       }
+      let profile = getProfile()
+      if (!profile) {
+        const remoteProfile = data.user.user_metadata?.profile as UserProfile | undefined
+        if (remoteProfile) {
+          saveProfile(remoteProfile)
+          profile = remoteProfile
+        }
+      }
+      router.replace(profile ? '/diary' : '/onboarding')
     })
   }, [router])
 
