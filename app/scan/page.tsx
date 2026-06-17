@@ -3,6 +3,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { FoodItem } from '@/lib/types'
 import { saveCustomFood } from '@/lib/store'
+import { findByBarcode, dbToFoodItem } from '@/lib/products'
 
 interface OFFProduct {
   product_name?: string
@@ -13,10 +14,16 @@ interface OFFProduct {
     carbohydrates_100g?: number
     fat_100g?: number
   }
-  image_front_url?: string
 }
 
 async function lookupBarcode(code: string): Promise<FoodItem | null> {
+  // 1. Check our Supabase DB first
+  try {
+    const dbProduct = await findByBarcode(code)
+    if (dbProduct) return dbToFoodItem(dbProduct)
+  } catch { /* ignore */ }
+
+  // 2. Fall back to Open Food Facts
   try {
     const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`)
     const data = await res.json()
