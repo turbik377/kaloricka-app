@@ -2,27 +2,6 @@
 import { useState, useEffect } from 'react'
 import { FoodItem, MealType } from '@/lib/types'
 import { getCustomFoods, saveCustomFood } from '@/lib/store'
-import { searchProducts, insertProduct, DBProduct, dbToFoodItem } from '@/lib/products'
-
-const BUILTIN_FOODS: FoodItem[] = [
-  { id: 'f1',  name: 'Chlieb Penam Kráľovský',  brand: 'Penam',    kcal_per_100g: 247, protein_per_100g: 8.2,  carbs_per_100g: 47.3, fat_per_100g: 2.1 },
-  { id: 'f2',  name: 'Vajcia Sedmička M',         brand: 'Sedmička', kcal_per_100g: 143, protein_per_100g: 12.6, carbs_per_100g: 0.7,  fat_per_100g: 9.9 },
-  { id: 'f3',  name: 'Kuracie prsia grilované',                      kcal_per_100g: 165, protein_per_100g: 31,   carbs_per_100g: 0,    fat_per_100g: 3.6 },
-  { id: 'f4',  name: 'Ryža varená',                                  kcal_per_100g: 130, protein_per_100g: 2.7,  carbs_per_100g: 28.2, fat_per_100g: 0.3 },
-  { id: 'f5',  name: 'Jogurt Rajo jahoda',         brand: 'Rajo',    kcal_per_100g: 78,  protein_per_100g: 3.5,  carbs_per_100g: 12.1, fat_per_100g: 1.5 },
-  { id: 'f6',  name: 'Rajo Acidofilné mlieko',     brand: 'Rajo',    kcal_per_100g: 60,  protein_per_100g: 3.3,  carbs_per_100g: 5,    fat_per_100g: 2.8 },
-  { id: 'f7',  name: 'Horalky originál',           brand: 'Sedita',  kcal_per_100g: 480, protein_per_100g: 6.2,  carbs_per_100g: 67,   fat_per_100g: 20  },
-  { id: 'f8',  name: 'Losos pečený',                                 kcal_per_100g: 208, protein_per_100g: 20,   carbs_per_100g: 0,    fat_per_100g: 13  },
-  { id: 'f9',  name: 'Zemiaky varené',                               kcal_per_100g: 86,  protein_per_100g: 2,    carbs_per_100g: 20,   fat_per_100g: 0.1 },
-  { id: 'f10', name: 'Hydinová šunka Mecom',       brand: 'Mecom',   kcal_per_100g: 130, protein_per_100g: 16,   carbs_per_100g: 2,    fat_per_100g: 6   },
-  { id: 'f11', name: 'Parenica Milsy',              brand: 'Milsy',   kcal_per_100g: 280, protein_per_100g: 22,   carbs_per_100g: 0.5,  fat_per_100g: 21  },
-  { id: 'f12', name: 'Bryndzové halušky',                            kcal_per_100g: 198, protein_per_100g: 7,    carbs_per_100g: 24,   fat_per_100g: 8   },
-  { id: 'f13', name: 'Tatranky Sedita',             brand: 'Sedita',  kcal_per_100g: 505, protein_per_100g: 7.5,  carbs_per_100g: 61,   fat_per_100g: 25  },
-  { id: 'f14', name: 'Kefír Rajo',                  brand: 'Rajo',    kcal_per_100g: 62,  protein_per_100g: 3.2,  carbs_per_100g: 4.8,  fat_per_100g: 3   },
-  { id: 'f15', name: 'Ovsenka varená',                               kcal_per_100g: 71,  protein_per_100g: 2.5,  carbs_per_100g: 12,   fat_per_100g: 1.5 },
-  { id: 'f16', name: 'Banán',                                        kcal_per_100g: 89,  protein_per_100g: 1.1,  carbs_per_100g: 23,   fat_per_100g: 0.3 },
-  { id: 'f17', name: 'Tvaroh Lipánek',              brand: 'Lipánek', kcal_per_100g: 72,  protein_per_100g: 12,   carbs_per_100g: 3.5,  fat_per_100g: 0.3 },
-]
 
 interface Props {
   mealLabel: string
@@ -60,29 +39,34 @@ export default function AddFoodModal({ mealLabel, mealId, onAdd, onClose }: Prop
   async function doSearch(q: string) {
     setSearching(true)
 
-    const local = [...BUILTIN_FOODS, ...getCustomFoods()]
-    const localFiltered = q
-      ? local.filter(f => f.name.toLowerCase().includes(q.toLowerCase()) || f.brand?.toLowerCase().includes(q.toLowerCase()))
-      : local.slice(0, 8)
-    const localItems: ResultItem[] = localFiltered.map(f => ({ food: f }))
+    const custom = getCustomFoods()
+    const customFiltered: ResultItem[] = q
+      ? custom.filter(f => f.name.toLowerCase().includes(q.toLowerCase()) || f.brand?.toLowerCase().includes(q.toLowerCase())).map(f => ({ food: f }))
+      : custom.slice(0, 6).map(f => ({ food: f }))
 
-    const [dbProducts, offProducts] = await Promise.all([
-      searchProducts(q),
-      q.length >= 2 ? fetch(`/api/off/search?q=${encodeURIComponent(q)}`).then(r => r.json()).catch(() => []) : Promise.resolve([]),
-    ])
-
-    const dbItems: ResultItem[] = (dbProducts as DBProduct[]).map(p => ({ food: dbToFoodItem(p), image_url: p.image_url }))
-    const offItems: ResultItem[] = (offProducts as (FoodItem & { image_url?: string })[]).map(p => ({ food: p, image_url: p.image_url }))
-
-    const seenIds = new Set<string>()
-    const merged: ResultItem[] = []
-    for (const item of [...dbItems, ...offItems, ...localItems]) {
-      if (!seenIds.has(item.food.id)) {
-        seenIds.add(item.food.id)
-        merged.push(item)
-      }
+    if (q.length < 2) {
+      setResults(customFiltered)
+      setSearching(false)
+      return
     }
-    setResults(merged)
+
+    try {
+      const res = await fetch(`/api/off/search?q=${encodeURIComponent(q)}`)
+      const offProducts: (FoodItem & { image_url?: string })[] = await res.json()
+      const offItems: ResultItem[] = offProducts.map(p => ({ food: p, image_url: p.image_url }))
+
+      const seenIds = new Set<string>()
+      const merged: ResultItem[] = []
+      for (const item of [...customFiltered, ...offItems]) {
+        if (!seenIds.has(item.food.id)) {
+          seenIds.add(item.food.id)
+          merged.push(item)
+        }
+      }
+      setResults(merged)
+    } catch {
+      setResults(customFiltered)
+    }
     setSearching(false)
   }
 
@@ -92,7 +76,7 @@ export default function AddFoodModal({ mealLabel, mealId, onAdd, onClose }: Prop
     onClose()
   }
 
-  async function handleAddNew() {
+  function handleAddNew() {
     if (!newName || !newKcal) return
     const food: FoodItem = {
       id: 'custom_' + Date.now(),
@@ -104,13 +88,6 @@ export default function AddFoodModal({ mealLabel, mealId, onAdd, onClose }: Prop
       fat_per_100g: parseFloat(newFat) || 0,
     }
     saveCustomFood(food)
-    await insertProduct({
-      name: food.name, brand: food.brand,
-      kcal_per_100g: food.kcal_per_100g,
-      protein_per_100g: food.protein_per_100g,
-      carbs_per_100g: food.carbs_per_100g,
-      fat_per_100g: food.fat_per_100g,
-    })
     onAdd(food, 100, mealId)
     onClose()
   }
@@ -152,6 +129,9 @@ export default function AddFoodModal({ mealLabel, mealId, onAdd, onClose }: Prop
             {!selected ? (
               <div className="overflow-y-auto flex-1 -mx-1 px-1">
                 {searching && <div className="text-center py-4 text-sm text-gray-400">Hľadám...</div>}
+                {!searching && query.length < 2 && results.length === 0 && (
+                  <div className="text-center py-8 text-sm text-gray-400">Začni písať názov jedla</div>
+                )}
                 {results.map(({ food, image_url }) => (
                   <button
                     key={food.id}
@@ -211,7 +191,7 @@ export default function AddFoodModal({ mealLabel, mealId, onAdd, onClose }: Prop
 
         {tab === 'new' && (
           <div className="flex-1 overflow-y-auto space-y-2">
-            <p className="text-xs text-gray-400 mb-1">Uloží sa pre teba aj do spoločnej SK databázy.</p>
+            <p className="text-xs text-gray-400 mb-1">Uloží sa do tvojich vlastných jedál.</p>
             <input type="text" placeholder="Názov produktu *" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-green-400" value={newName} onChange={e => setNewName(e.target.value)} />
             <input type="text" placeholder="Výrobca" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-green-400" value={newBrand} onChange={e => setNewBrand(e.target.value)} />
             <p className="text-xs text-gray-400 pt-1">Na 100g:</p>
