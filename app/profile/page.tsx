@@ -18,8 +18,10 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [editing, setEditing] = useState(false)
   const [weight, setWeight] = useState('')
-  const [targetWeight, setTargetWeight] = useState('')
   const [height, setHeight] = useState('')
+  const [age, setAge] = useState('')
+  const [goal, setGoal] = useState<UserProfile['goal']>('udrzat')
+  const [activity, setActivity] = useState<number>(1.55)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
@@ -34,6 +36,9 @@ export default function ProfilePage() {
       setProfile(p)
       setWeight(String(p.weight))
       setHeight(String(p.height))
+      setAge(String(p.age))
+      setGoal(p.goal)
+      setActivity(p.activity)
     }
   }, [router])
 
@@ -41,8 +46,9 @@ export default function ProfilePage() {
     if (!profile) return
     const newWeight = parseFloat(weight) || profile.weight
     const newHeight = parseFloat(height) || profile.height
-    const updated = { ...profile, weight: newWeight, height: newHeight }
-    const goals = calcTDEE({ age: updated.age, height: newHeight, weight: newWeight, gender: updated.gender, activity: updated.activity, goal: updated.goal })
+    const newAge = parseInt(age) || profile.age
+    const updated = { ...profile, weight: newWeight, height: newHeight, age: newAge, goal, activity }
+    const goals = calcTDEE({ age: newAge, height: newHeight, weight: newWeight, gender: updated.gender, activity, goal })
     const final: UserProfile = { ...updated, ...goals }
     saveProfile(final)
     setProfile(final)
@@ -106,18 +112,41 @@ export default function ProfilePage() {
               </div>
             ) : (
               <div className="p-4 space-y-3">
+                {[
+                  { label: 'Váha (kg)', value: weight, set: setWeight, unit: 'kg' },
+                  { label: 'Výška (cm)', value: height, set: setHeight, unit: 'cm' },
+                  { label: 'Vek', value: age, set: setAge, unit: 'rokov' },
+                ].map(f => (
+                  <div key={f.label}>
+                    <label className="text-xs text-gray-400 mb-1 block">{f.label}</label>
+                    <div className="flex items-center border border-gray-200 rounded-xl px-4 py-3 focus-within:border-green-400">
+                      <input type="number" value={f.value} onChange={e => f.set(e.target.value)} className="flex-1 text-base outline-none bg-transparent" />
+                      <span className="text-sm text-gray-400">{f.unit}</span>
+                    </div>
+                  </div>
+                ))}
                 <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Aktuálna váha (kg)</label>
-                  <div className="flex items-center border border-gray-200 rounded-xl px-4 py-3 focus-within:border-green-400">
-                    <input type="number" value={weight} onChange={e => setWeight(e.target.value)} className="flex-1 text-base outline-none bg-transparent" />
-                    <span className="text-sm text-gray-400">kg</span>
+                  <label className="text-xs text-gray-400 mb-1 block">Cieľ</label>
+                  <div className="flex gap-1">
+                    {([['chudnut','Chudnúť'],['udrzat','Udržať'],['priberat','Naberať']] as const).map(([id, label]) => (
+                      <button key={id} onClick={() => setGoal(id)}
+                        className="flex-1 py-2 text-xs rounded-xl border font-medium transition-all"
+                        style={{ borderColor: goal === id ? '#1D9E75' : '#e5e7eb', borderWidth: goal === id ? 2 : 1, background: goal === id ? '#E1F5EE' : 'white', color: goal === id ? '#0F6E56' : '#6b7280' }}>
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Výška (cm)</label>
-                  <div className="flex items-center border border-gray-200 rounded-xl px-4 py-3 focus-within:border-green-400">
-                    <input type="number" value={height} onChange={e => setHeight(e.target.value)} className="flex-1 text-base outline-none bg-transparent" />
-                    <span className="text-sm text-gray-400">cm</span>
+                  <label className="text-xs text-gray-400 mb-1 block">Aktivita</label>
+                  <div className="grid grid-cols-2 gap-1">
+                    {([[1.2,'Sedavý'],[1.375,'Ľahká'],[1.55,'Stredná'],[1.725,'Vysoká']] as const).map(([factor, label]) => (
+                      <button key={factor} onClick={() => setActivity(factor)}
+                        className="py-2 text-xs rounded-xl border font-medium transition-all"
+                        style={{ borderColor: activity === factor ? '#1D9E75' : '#e5e7eb', borderWidth: activity === factor ? 2 : 1, background: activity === factor ? '#E1F5EE' : 'white', color: activity === factor ? '#0F6E56' : '#6b7280' }}>
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
                 <button

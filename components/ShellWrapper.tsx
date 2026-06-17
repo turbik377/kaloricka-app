@@ -2,7 +2,7 @@
 import { usePathname } from 'next/navigation'
 import AppShell from './AppShell'
 
-const NO_NAV = ['/', '/auth', '/onboarding']
+const NO_NAV = ['/', '/auth', '/onboarding', '/auth/callback']
 
 export default function ShellWrapper({ children }: { children: React.ReactNode }) {
   const path = usePathname()
