@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { FoodItem } from '@/lib/types'
 import { saveCustomFood } from '@/lib/store'
@@ -13,6 +13,7 @@ interface OFFProduct {
     carbohydrates_100g?: number
     fat_100g?: number
   }
+  image_front_url?: string
 }
 
 async function lookupBarcode(code: string): Promise<FoodItem | null> {
@@ -37,8 +38,7 @@ async function lookupBarcode(code: string): Promise<FoodItem | null> {
 
 export default function ScanPage() {
   const router = useRouter()
-  const scannerRef = useRef<unknown>(null)
-  const [scanning, setScanning] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [manualCode, setManualCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [found, setFound] = useState<FoodItem | null>(null)
@@ -46,42 +46,20 @@ export default function ScanPage() {
   const [grams, setGrams] = useState(100)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    return () => { stopScanner() }
-  }, [])
-
-  async function startScanner() {
+  async function handleImageFile(file: File) {
     setError('')
+    setLoading(true)
+    setFound(null)
+    setNotFound(false)
     try {
       const { Html5Qrcode } = await import('html5-qrcode')
-      const scanner = new Html5Qrcode('qr-reader')
-      scannerRef.current = scanner
-      setScanning(true)
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 120 } },
-        async (code: string) => {
-          await stopScanner()
-          setScanning(false)
-          await handleCode(code)
-        },
-        undefined
-      )
+      const scanner = new Html5Qrcode('qr-hidden')
+      const result = await scanner.scanFile(file, false)
+      await handleCode(result)
     } catch {
-      setError('Kamera nie je dostupná alebo nemáš povolenie. Zadaj kód ručne.')
-      setScanning(false)
+      setLoading(false)
+      setError('Nepodarilo sa prečítať kód z fotky. Skús odfotiť znova alebo zadaj kód ručne.')
     }
-  }
-
-  async function stopScanner() {
-    try {
-      const { Html5Qrcode } = await import('html5-qrcode')
-      if (scannerRef.current) {
-        const s = scannerRef.current as InstanceType<typeof Html5Qrcode>
-        if (s.isScanning) await s.stop()
-        scannerRef.current = null
-      }
-    } catch { /* ignore */ }
   }
 
   async function handleCode(code: string) {
@@ -115,6 +93,16 @@ export default function ScanPage() {
 
   return (
     <div className="pb-24">
+      <div id="qr-hidden" style={{ display: 'none' }} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={e => { if (e.target.files?.[0]) handleImageFile(e.target.files[0]) }}
+      />
+
       <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-10">
         <h1 className="text-base font-medium text-gray-900 text-center">Skenovať produkt</h1>
       </div>
@@ -122,29 +110,25 @@ export default function ScanPage() {
       <div className="p-4 space-y-3">
         {!found && !notFound && !loading && (
           <>
-            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-              <div id="qr-reader" className="w-full" style={{ minHeight: scanning ? 280 : 0 }} />
-              {!scanning && (
-                <div className="flex flex-col items-center justify-center py-10 gap-3">
-                  <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: '#E1F5EE' }}>
-                    <svg className="w-8 h-8" style={{ color: '#1D9E75' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 9V5a2 2 0 012-2h4M3 15v4a2 2 0 002 2h4m10-16h-4a2 2 0 00-2 2v4m6 6v4a2 2 0 01-2 2h-4M9 9h6v6H9z" />
-                    </svg>
-                  </div>
-                  <button onClick={startScanner} className="px-6 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: '#1D9E75' }}>
-                    Spustiť kameru
-                  </button>
-                </div>
-              )}
-              {scanning && (
-                <div className="px-4 py-3 flex items-center justify-between border-t border-gray-100">
-                  <p className="text-sm text-gray-500">Namierte na čiarový kód...</p>
-                  <button onClick={() => { stopScanner(); setScanning(false) }} className="text-xs text-gray-400 hover:text-gray-600">Zrušiť</button>
-                </div>
-              )}
-            </div>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full rounded-2xl border-2 border-dashed py-10 flex flex-col items-center gap-3 transition-colors hover:bg-gray-50"
+              style={{ borderColor: '#9FE1CB' }}
+            >
+              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: '#E1F5EE' }}>
+                <svg className="w-8 h-8" style={{ color: '#1D9E75' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 9V5a2 2 0 012-2h4M3 15v4a2 2 0 002 2h4m10-16h-4a2 2 0 00-2 2v4m6 6v4a2 2 0 01-2 2h-4M9 9h6v6H9z" />
+                </svg>
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-medium text-gray-900">Odfotiť čiarový kód</div>
+                <div className="text-xs text-gray-400 mt-0.5">Kamera sa otvorí automaticky</div>
+              </div>
+            </button>
 
-            {error && <p className="text-sm text-red-500 text-center">{error}</p>}
+            {error && (
+              <div className="bg-red-50 rounded-xl px-4 py-3 text-sm text-red-600">{error}</div>
+            )}
 
             <div className="flex items-center gap-3">
               <div className="flex-1 h-px bg-gray-200" />
@@ -158,7 +142,7 @@ export default function ScanPage() {
                 placeholder="EAN kód (napr. 8594001234567)"
                 value={manualCode}
                 onChange={e => setManualCode(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleCode(manualCode)}
+                onKeyDown={e => e.key === 'Enter' && manualCode && handleCode(manualCode)}
                 className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-green-400"
               />
               <button
@@ -184,14 +168,10 @@ export default function ScanPage() {
           <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
             <div className="text-4xl mb-3">🔍</div>
             <p className="font-medium text-gray-900 mb-1">Produkt nenájdený</p>
-            <p className="text-sm text-gray-400 mb-4">Tento produkt nie je v databáze. Môžeš ho pridať ručne v denníku.</p>
+            <p className="text-sm text-gray-400 mb-4">Nie je v databáze. Môžeš ho pridať ručne v denníku.</p>
             <div className="flex gap-2">
-              <button onClick={() => { setNotFound(false); setManualCode('') }} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600">
-                Skúsiť znova
-              </button>
-              <button onClick={() => router.push('/diary')} className="flex-1 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: '#1D9E75' }}>
-                Pridať ručne
-              </button>
+              <button onClick={() => { setNotFound(false); setManualCode('') }} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600">Skúsiť znova</button>
+              <button onClick={() => router.push('/diary')} className="flex-1 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: '#1D9E75' }}>Pridať ručne</button>
             </div>
           </div>
         )}
@@ -200,11 +180,11 @@ export default function ScanPage() {
           <div className="space-y-3">
             <div className="bg-white rounded-2xl border border-gray-200 p-4">
               <div className="flex items-start gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0" style={{ background: '#E1F5EE' }}>🏷️</div>
-                <div>
-                  <div className="font-medium text-gray-900">{found.name}</div>
-                  {found.brand && <div className="text-sm text-gray-400">{found.brand}</div>}
-                  <span className="inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded" style={{ background: '#E1F5EE', color: '#0F6E56' }}>
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0" style={{ background: '#E1F5EE' }}>🏷️</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-900 leading-tight">{found.name}</div>
+                  {found.brand && <div className="text-sm text-gray-400 mt-0.5">{found.brand}</div>}
+                  <span className="inline-block mt-1.5 text-xs font-medium px-2 py-0.5 rounded" style={{ background: '#E1F5EE', color: '#0F6E56' }}>
                     {found.kcal_per_100g} kcal / 100g
                   </span>
                 </div>
@@ -215,7 +195,7 @@ export default function ScanPage() {
                   { label: 'Sacharidy',  val: found.carbs_per_100g,   color: '#185FA5', bg: '#E6F1FB' },
                   { label: 'Tuky',       val: found.fat_per_100g,     color: '#BA7517', bg: '#FAEEDA' },
                 ].map(m => (
-                  <div key={m.label} className="rounded-xl py-2 text-center" style={{ background: m.bg }}>
+                  <div key={m.label} className="rounded-xl py-2.5 text-center" style={{ background: m.bg }}>
                     <div className="text-xs mb-0.5" style={{ color: m.color, opacity: 0.7 }}>{m.label}</div>
                     <div className="text-sm font-medium" style={{ color: m.color }}>{m.val}g</div>
                   </div>
@@ -226,10 +206,10 @@ export default function ScanPage() {
             <div className="bg-white rounded-2xl border border-gray-200 p-4">
               <div className="text-sm text-gray-500 mb-2">Množstvo</div>
               <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-2.5 mb-3">
-                <button onClick={() => setGrams(g => Math.max(10, g - 10))} className="text-xl text-gray-400 hover:text-gray-700">−</button>
+                <button onClick={() => setGrams(g => Math.max(10, g - 10))} className="text-xl text-gray-400 hover:text-gray-700 w-8">−</button>
                 <input type="number" value={grams} onChange={e => setGrams(Math.max(1, parseInt(e.target.value) || 1))} className="flex-1 text-center text-lg font-medium outline-none bg-transparent" />
                 <span className="text-gray-400 text-sm">g</span>
-                <button onClick={() => setGrams(g => g + 10)} className="text-xl text-gray-400 hover:text-gray-700">+</button>
+                <button onClick={() => setGrams(g => g + 10)} className="text-xl text-gray-400 hover:text-gray-700 w-8">+</button>
               </div>
               <div className="flex justify-between items-center mb-4 px-1">
                 <span className="text-sm text-gray-500">Kalórie spolu</span>
@@ -239,10 +219,7 @@ export default function ScanPage() {
                 Pridať do denníka
               </button>
             </div>
-
-            <button onClick={() => { setFound(null); setManualCode('') }} className="w-full py-3 text-sm text-gray-400 hover:text-gray-600">
-              ← Skenovať iný produkt
-            </button>
+            <button onClick={() => { setFound(null); setManualCode('') }} className="w-full py-3 text-sm text-gray-400">← Skenovať iný produkt</button>
           </div>
         )}
       </div>
