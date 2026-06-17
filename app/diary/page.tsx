@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { DiaryEntry, FoodItem, MealType } from '@/lib/types'
 import { getDiary, addEntry, getDefaultGoals } from '@/lib/store'
 import { calcMacros, todayStr } from '@/lib/calc'
@@ -7,6 +7,8 @@ import { MEALS } from '@/lib/meals'
 import DaySummary from '@/components/DaySummary'
 import MealSection from '@/components/MealSection'
 import AddFoodModal from '@/components/AddFoodModal'
+
+const DEFAULT_GOALS = { kcal_goal: 2000, protein_goal: 120, carbs_goal: 250, fat_goal: 70 }
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr + 'T12:00:00')
@@ -21,11 +23,16 @@ function offsetDate(base: string, days: number) {
 
 export default function DiaryPage() {
   const [date, setDate] = useState(todayStr())
-  const [entries, setEntries] = useState<DiaryEntry[]>(() => getDiary(date))
+  const [entries, setEntries] = useState<DiaryEntry[]>([])
   const [modal, setModal] = useState<{ mealId: MealType; label: string } | null>(null)
-  const goals = getDefaultGoals()
+  const [goals, setGoals] = useState(DEFAULT_GOALS)
 
-  const refresh = useCallback((d: string) => setEntries(getDiary(d)), [])
+  useEffect(() => {
+    setEntries(getDiary(date))
+    setGoals(getDefaultGoals())
+  }, [date])
+
+  const refresh = useCallback((d: string) => { setEntries(getDiary(d)) }, [])
 
   function changeDate(delta: number) {
     const next = offsetDate(date, delta)
