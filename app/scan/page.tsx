@@ -52,13 +52,18 @@ export default function ScanPage() {
     setFound(null)
     setNotFound(false)
     try {
-      const { Html5Qrcode } = await import('html5-qrcode')
-      const scanner = new Html5Qrcode('qr-hidden')
-      const result = await scanner.scanFile(file, false)
-      await handleCode(result)
+      const { BrowserMultiFormatReader } = await import('@zxing/browser')
+      const reader = new BrowserMultiFormatReader()
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.src = url
+      await new Promise(r => { img.onload = r })
+      const result = await reader.decodeFromImageElement(img)
+      URL.revokeObjectURL(url)
+      await handleCode(result.getText())
     } catch {
       setLoading(false)
-      setError('Nepodarilo sa prečítať kód z fotky. Skús odfotiť znova alebo zadaj kód ručne.')
+      setError('Nepodarilo sa prečítať kód z fotky. Odfot kód na rovnej ploche, zblízka a ostrý.')
     }
   }
 
@@ -93,7 +98,6 @@ export default function ScanPage() {
 
   return (
     <div className="pb-24">
-      <div id="qr-hidden" style={{ display: 'none' }} />
       <input
         ref={fileInputRef}
         type="file"
